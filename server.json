@@ -1,0 +1,11 @@
+{
+    "bootstrap" : false,
+    "server" : true,
+    "datacenter" : "techops",
+    "data_dir" : "/data/consul",
+	"log_level" : "INFO",
+    "enable_syslog" : true,
+    "start_join" : ["mc1", "mc2", "mc3" ],
+	"bootstrap_expect": 3
+}
+
