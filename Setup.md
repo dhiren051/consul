@@ -67,3 +67,16 @@ sudo rm -rf /data/consul/*
 * ~~install nomad~~
 * ~~integrate with consul~~
 * schedule a job
+
+Command commands: 
+consul members -http-addr mc3:8500
+
+nomad ui : http://[public ip]:4646/ui/jobs
+consul ui: http://[public ip]:8500/ui/
+
+nomad status <job name>
+nomad alloc-status <alloc id>
+nomad run <job name>
+consul validate <config file name>
+nomad plan <config file name>
+  
