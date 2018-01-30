@@ -1,8 +1,8 @@
 127.0.0.1 mc3.localdomain localhost
 
-172.31.33.85	mc1
-172.31.39.50	mc2
-172.31.46.108	mc3
+<private ip>	mc1
+<privateip>	mc2
+<private ip>	mc3
 
 # The following lines are desirable for IPv6 capable hosts
 ::1 ip6-localhost ip6-loopback
