@@ -1,0 +1,81 @@
+Add service host in [domain_realm] branch of /etc/krb5.conf: 
+source /usr/local/osmosix/etc/userenv;echo $CMDB_SERVICE_NAME
+${SERVICEHOST} .core.pimcocloud.net = PIMCO.IMSWEST.SSCIMS.COM
+ 
+Create service account keytab with these unix commands:
+ktutil
+ktutil:  addent -password -p userid@domain.com -k 1 -e aes256-cts
+Password for userid@domain.com:
+ktutil:  wkt userid.keytab
+ktutil:  exit
+ 
+ 
+Update  with service account and its keytab full path:
+ 
+Create pd_health.sh:
+#!/bin/sh
+ 
+export KRB5_CONFIG=/etc/krb5.conf
+/usr/share/centrifydc/kerberos/bin/kinit userid@domain.com -k -t /home/consul/userid.keytab
+ 
+source /usr/local/osmosix/etc/userenv;echo $CMDB_SERVICE_NAME
+source /usr/local/osmosix/etc/userenv;echo $CliqrDepEnvName
+CMDBID="${CliqrDepEnvName}_${CMDB_SERVICE_NAME}"
+STATUS="$(/usr/share/centrifydc/bin/curl -s --negotiate -u : http://${CMDB_SERVICE_NAME}-${CliqrDepEnvName}/health | jq '.status' | tr -d '"')"
+MESSAGE="$(/usr/share/centrifydc/bin/curl -s --negotiate -u : http://${CMDB_SERVICE_NAME}-${CliqrDepEnvName}/info )"
+ 
+export SUBJECT="[${CliqrDepEnvName^^}: PagerDuty Alert]: ${CMDBID} service status is ${STATUS^^}"
+export smtp=localhost:25
+export EMAIL="${CMDBID}_consul@pagerduty.com"
+ 
+if [ $STATUS != HEALTHY ]
+then
+  echo "CRITICAL"
+  echo $'Please check the following error: \n'${MESSAGE} | mailx -s "$SUBJECT" "$EMAIL"
+  exit 2
+else
+  echo "HEALTHY"
+  exit 0
+fi
+​​​​​
+Parameterize pd_health.sh full path in below shell script.
+ 
+Shell script to create json config file with name service_health.json at path /etc/consul/conf.d:
+#!/bin/sh
+ 
+JSONFILE="/etc/consul/conf.d/service_health.json"
+ 
+source /usr/local/osmosix/etc/userenv;echo $CMDB_SERVICE_NAME
+source /usr/local/osmosix/etc/userenv;echo $CliqrDepEnvName
+SERVICENAME="${CMDB_SERVICE_NAME}-${CliqrDepEnvName}"
+ 
+if [ ! -e "$JSONFILE" ] ; then
+     touch "$JSONFILE"
+     chmod 755 "$JSONFILE"
+fi
+ 
+if [ ! -w "$JSONFILE" ] ; then
+    echo cannot write to $JSONFILE
+    exit 1
+else
+    cat > "$JSONFILE"<<EOF_JSON
+{"service":{"id":"$CMDB_SERVICE_NAME","name":"$SERVICENAME","enableTagOverride":true,"checks":[{"id":"$CMDB_SERVICE_NAME","script":"/home/consul/pd_health.sh","interval":"10s","timeout":"5s"}]}}
+EOF_JSON
+    exit 0
+fi
+ 
+Register node at consul cluster:
+source /usr/local/osmosix/etc/userenv;echo $CliqrTier_HOSTNAME
+curl -v --request PUT --data @/etc/consul/conf.d/service_health.json "[http:${CliqrTier_HOSTNAME}//:8500/v1/agent/services]"
+ 
+Restart consul:
+sudo sv restart consul
+ 
+ 
+At node termination , run curl to de-register node from consul cluster :
+source /usr/local/osmosix/etc/userenv;echo $CMDB_SERVICE_NAME
+source /usr/local/osmosix/etc/userenv;echo $CliqrTier_HOSTNAME
+curl   --request PUT  "http://${CliqrTier_HOSTNAME}:8500/v1/agent/service/deregister/${CMDB_SERVICE_NAME}"
+
+Restart consul:
+sudo sv restart consul
